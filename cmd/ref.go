@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"gugit/internal/memory"
 	"gugit/internal/util"
 	"io/fs"
@@ -44,9 +43,9 @@ func updateRef(ref string, value RefValue, deref bool) {
 func getRef(oid string, deref bool) (string, RefValue) {
 	path := memory.UGIT_DIR + "/" + oid
 	if refNotExist(oid) {
-		fmt.Println("Ref " + oid + " Does not exist ")
 		return oid, RefValue{}
 	}
+
 	b, err := os.ReadFile(path)
 	util.Check(err)
 	s := string(b)
@@ -87,13 +86,31 @@ func create(p string) (*os.File, error) {
 
 func genRefs() []string {
 	refs := []string{"HEAD"}
-	err := filepath.WalkDir(memory.UGIT_DIR+"/"+"refs", func(path string, d fs.DirEntry, err error) error {
+
+	// Check if refs directory exists
+	refsPath := filepath.Join(memory.UGIT_DIR, "refs")
+	if _, err := os.Stat(refsPath); os.IsNotExist(err) {
+		return refs // Return just HEAD if refs directory doesn't exist
+	}
+
+	err := filepath.WalkDir(refsPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip errors and continue walking
+		}
 		if !d.IsDir() {
-			refs = append(refs, d.Name())
+			relPath, err := filepath.Rel(memory.UGIT_DIR, path)
+			if err != nil {
+				return nil // Skip errors and continue walking
+			}
+			refs = append(refs, relPath)
 		}
 		return nil
 	})
-	util.Check(err)
+
+	if err != nil {
+		return []string{"HEAD"} // Return just HEAD if there's an error
+	}
+
 	return refs
 }
 

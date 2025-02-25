@@ -2,12 +2,10 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"gugit/internal"
 	"gugit/internal/memory"
 	"gugit/internal/util"
-	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -17,6 +15,9 @@ import (
 
 func WriteTree(dirPath string) string {
 	dirEntries, err := os.ReadDir(dirPath)
+	if err != nil {
+		log.Fatal(err)
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -30,7 +31,7 @@ func WriteTree(dirPath string) string {
 		}
 		if entry.IsDir() {
 			typ_ := internal.TREE
-			name := dirPath + "\\" + entry.Name()
+			name := filepath.Join(dirPath, entry.Name())
 			oid := WriteTree(name)
 			te = internal.TreeEntry{
 				Typ_: typ_,
@@ -40,7 +41,7 @@ func WriteTree(dirPath string) string {
 
 		} else {
 			typ_ := internal.BLOB
-			name := cwd + "\\" + dirPath + "\\" + entry.Name()
+			name := filepath.Join(cwd, dirPath, entry.Name())
 			oid := memory.HashFile(name, typ_)
 			te = internal.TreeEntry{
 				Typ_: typ_,
@@ -58,41 +59,79 @@ func WriteTree(dirPath string) string {
 	}
 	//skip empty directories
 	ws := sb.String()
+	if ws == "" {
+		return ""
+	}
 	oid := memory.StoreObjectBytes([]byte(ws), internal.TREE)
 	fmt.Println("Tree oid " + oid)
 	return oid
 }
 
 func GetTree(oid string, basePath string) map[string]string {
+	// Handle empty oid
+	if oid == "" {
+		return make(map[string]string)
+	}
+
 	f, err := os.Open(memory.OBJECTS_DIR + "/" + oid)
 	if err != nil {
-		log.Fatal(err)
+		// Return empty map instead of fatal error
+		return make(map[string]string)
 	}
 	defer f.Close()
-	//path to oid
+
 	files := make(map[string]string)
 	scanner := bufio.NewScanner(f)
 	scanner.Split(bufio.ScanLines)
-	lines := make([]byte, 0)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Bytes()...)
-	}
-	//skip this file type
-	lines = lines[4:]
-	entriesString := strings.Split(string(lines), " ")[1:]
 
-	for i := 0; i < len(entriesString); i = i + 3 {
+	var content []byte
+	for scanner.Scan() {
+		content = append(content, scanner.Bytes()...)
+	}
+
+	// Check if file is empty or too small
+	if len(content) < 4 {
+		return files
+	}
+
+	// Skip file type bytes
+	content = content[4:]
+	if len(content) == 0 {
+		return files
+	}
+
+	entriesString := strings.Split(string(content), " ")
+	// Check if we have valid entries
+	if len(entriesString) <= 1 {
+		return files
+	}
+	entriesString = entriesString[1:] // Skip first empty element after split
+
+	for i := 0; i < len(entriesString); i += 3 {
+		// Ensure we have enough elements for a complete entry
+		if i+2 >= len(entriesString) {
+			break
+		}
+
 		typ_, hash, name := entriesString[i], entriesString[i+1], entriesString[i+2]
+
+		// Convert to forward slashes and clean path
+		cleanPath := filepath.ToSlash(filepath.Clean(name))
+
+		// Make path relative to working directory
 		wd, err := os.Getwd()
-		util.Check(err)
-		path, err := filepath.Rel(wd, name)
-		util.Check(err)
+		if err == nil {
+			if relPath, err := filepath.Rel(wd, cleanPath); err == nil {
+				cleanPath = filepath.ToSlash(relPath)
+			}
+		}
+
 		if typ_ == "BLOB" {
-			files[path] = hash
+			files[cleanPath] = hash
 		} else if typ_ == "TREE" {
-			for k, v := range GetTree(hash, path+"/") {
-				//k is path so add /dir/ to path to it won't create just a file
-				files[k] = v
+			subFiles := GetTree(hash, cleanPath+"/")
+			for k, v := range subFiles {
+				files[filepath.ToSlash(filepath.Clean(k))] = v
 			}
 		}
 	}
@@ -100,43 +139,71 @@ func GetTree(oid string, basePath string) map[string]string {
 }
 
 func ReadTree(oid string) {
-	//Not sure about using this yet
-	//cleanDir()
+	// First, we should clean the working directory except for .ugit
+	util.CleanDir()
+
+	// Get the tree entries and restore files
 	for path, oid := range GetTree(oid, "./") {
+		// Create directories if they don't exist
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			log.Fatal(err)
+		}
+
+		// Create and write file
 		f, err := os.Create(path)
 		if err != nil {
 			log.Fatal(err)
 		}
-		data, err := os.ReadFile(memory.OBJECTS_DIR + "/" + oid)
+		defer f.Close()
 
-		if err != nil {
-			log.Fatal(err)
+		// Get object data
+		data, typ := memory.GetObject(oid)
+		if typ != internal.BLOB {
+			log.Fatal("Expected blob, got " + internal.TypeToString(uint32(typ)))
 		}
-		_, err = io.Copy(f, bytes.NewReader(data[4:]))
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = f.Close()
-		if err != nil {
+
+		// Write file contents (skip the type bytes)
+		if _, err := f.Write(data); err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
-func getWorkingTree() map[string]string {
+func getWorkingTree() (map[string]string, error) {
 	entries := make(map[string]string)
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if util.Ignore(path) || d.IsDir() {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-
 		if err != nil {
 			return err
 		}
-		entries[path] = memory.HashObject(data, internal.BLOB)
+
+		// Convert to forward slashes and clean path
+		cleanPath := filepath.ToSlash(filepath.Clean(path))
+
+		// Skip directories and ignored paths
+		if d.IsDir() || util.Ignore(cleanPath) {
+			return nil
+		}
+
+		// Make path relative to current directory
+		relPath, err := filepath.Rel(".", cleanPath)
+		if err != nil {
+			return err
+		}
+
+		// Normalize to forward slashes
+		normalizedPath := filepath.ToSlash(relPath)
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		entries[normalizedPath] = memory.HashObject(data, internal.BLOB)
 		return nil
 	})
-	util.Check(err)
-	return entries
+
+	if err != nil {
+		return nil, err
+	}
+	return entries, nil
 }

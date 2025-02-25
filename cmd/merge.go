@@ -2,34 +2,93 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"gugit/internal"
 	"gugit/internal/memory"
-	"gugit/internal/util"
 	"log"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 func Merge(otherBranch string) {
-	_, r := getRef("HEAD", true)
-	if r.value == "" {
+	// Get current HEAD commit
+	_, head := getRef("HEAD", true)
+	if head.value == "" {
 		log.Fatalln("Could not merge -> HEAD not found.")
 	}
 
+	// Get other branch commit
 	_, otherBranchRef := getRef(otherBranch, true)
-	comHead := getCommit(r.value)
+	if otherBranchRef.value == "" {
+		log.Fatalf("Branch %s not found", otherBranch)
+	}
+
+	// Get common ancestor
+	ancestor := getCommonAncestor(head.value, otherBranchRef.value)
+	if ancestor == "" {
+		log.Println("Warning: no common ancestor found, doing recursive merge")
+	}
+
+	// Store MERGE_HEAD for the commit
+	updateRef("MERGE_HEAD", RefValue{
+		symbolic: false,
+		value:    otherBranchRef.value,
+	}, true)
+
+	// Read and merge trees
+	comHead := getCommit(head.value)
 	comOther := getCommit(otherBranchRef.value)
 
-	updateRef("MERGE_HEAD", RefValue{symbolic: false, value: otherBranch}, true)
-	readTreeMerged(comHead.Oid, comOther.Oid)
-	fmt.Println("Merged in working tree\nPleaseCommit")
+	// Print merge information
+	fmt.Printf("Merging branch '%s' into '%s'\n", otherBranch, getBranch())
+
+	changes := readTreeMerged(comHead.Tree, comOther.Tree)
+	if len(changes) > 0 {
+		fmt.Println("\nChanged files:")
+		for path, action := range changes {
+			fmt.Printf("%s: %s\n", action, path)
+		}
+	}
+
+	// Create merge commit
+	mergeCommit("Merge branch '" + otherBranch + "'")
+
+	// Properly close and remove MERGE_HEAD
+	if err := os.Remove(filepath.Join(memory.UGIT_DIR, "MERGE_HEAD")); err != nil {
+		// If file is in use, schedule removal for program exit
+		defer func() {
+			_ = os.Remove(filepath.Join(memory.UGIT_DIR, "MERGE_HEAD"))
+		}()
+	}
+
+	fmt.Printf("\nMerge completed successfully\n")
 }
 
-func readTreeMerged(treeHead, treeOther string) {
-	for path, blob := range mergeTrees(GetTree(treeHead, ""), GetTree(treeOther, "")) {
-		f, err := create(memory.UGIT_DIR + "/" + path)
-		util.Check(err)
-		_, err = f.Write([]byte(blob))
-		util.Check(err)
+func readTreeMerged(treeHead, treeOther string) map[string]string {
+	changes := make(map[string]string)
+	mergedTree := mergeTrees(GetTree(treeHead, ""), GetTree(treeOther, ""))
+
+	for path, blob := range mergedTree {
+		fullPath := filepath.Join(".", path)
+
+		// Ensure directory exists
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			log.Printf("Warning: couldn't create directory for %s: %v\n", path, err)
+			continue
+		}
+
+		// Write file
+		if err := os.WriteFile(fullPath, []byte(blob), 0644); err != nil {
+			log.Printf("Warning: couldn't write file %s: %v\n", path, err)
+			continue
+		}
+
+		changes[path] = "modified"
 	}
+
+	return changes
 }
 
 func mergeTrees(treeHead, treeOther map[string]string) map[string]string {
@@ -51,12 +110,19 @@ func mergeBlobs(objHead, objOther string) string {
 	if objOther != "" {
 		objO, _ = memory.GetObject(objOther)
 	}
-	dmp := diffmatchpatch.New()
 
+	dmp := diffmatchpatch.New()
 	diffs := dmp.DiffMain(string(objH), string(objO), true)
 	diffs = dmp.DiffCleanupMerge(diffs)
 
-	return dmp.DiffPrettyText(diffs)
+	// Print diff information
+	if len(diffs) > 1 { // More than one diff means there are changes
+		fmt.Printf("\nConflict resolution for changes:\n")
+		fmt.Println(dmp.DiffPrettyText(diffs))
+	}
+
+	merged := dmp.DiffText2(diffs)
+	return merged
 }
 
 func getCommonAncestor(oid1, oid2 string) string {
@@ -98,4 +164,50 @@ func getCommonAncestor(oid1, oid2 string) string {
 
 	}
 	return ""
+}
+
+func mergeCommit(message string) {
+	// Get current working directory state
+	oid := WriteTree(".")
+
+	// Get HEAD and MERGE_HEAD
+	_, head := getRef("HEAD", true)
+	_, mergeHead := getRef("MERGE_HEAD", true)
+
+	// Create commit object
+	author := "Test"
+	t := time.Now()
+	c := internal.Commit{
+		Oid:    oid,
+		Author: author,
+		Time:   t,
+		Msg:    message,
+		Parent: []string{head.value, mergeHead.value}, // Both parents
+		Tree:   oid,
+	}
+
+	// Write commit object
+	cs := c.String()
+	cs += "\nparent " + head.value + "\n"
+	cs += "parent " + mergeHead.value + "\n"
+
+	commitOid := memory.HashObject([]byte(cs), internal.COMMIT)
+
+	dest, err := os.Create(memory.OBJECTS_DIR + "/" + commitOid)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dest.Close()
+
+	_, err = dest.Write(internal.COMMIT.ToBytes())
+	_, err = dest.Write([]byte(cs))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Update HEAD to point to new commit
+	updateRef("HEAD", RefValue{
+		symbolic: false,
+		value:    commitOid,
+	}, true)
 }

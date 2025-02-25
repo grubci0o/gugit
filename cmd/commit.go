@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"gugit/internal"
 	"gugit/internal/memory"
 	"log"
@@ -9,14 +10,17 @@ import (
 	"time"
 )
 
-func Commit() {
-	c := CreateCommit("My message")
+func Commit(dirPath string) {
+	if dirPath == "" {
+		dirPath = "." // Default to current directory if none specified
+	}
+
+	c := CreateCommit("My message", dirPath)
 	cs := c.String()
 	_, head := getRef("HEAD", true)
 	h := head.value
 
 	_, mergeH := getRef("MERGE_HEAD", true)
-
 	if mergeH.value != "" {
 		cs += "\nParent: " + mergeH.value
 	}
@@ -26,6 +30,7 @@ func Commit() {
 	}
 	oid := memory.HashObject([]byte(cs), internal.COMMIT)
 
+	// Create commit object
 	dest, err := os.Create(memory.OBJECTS_DIR + "/" + oid)
 	if err != nil {
 		log.Fatal(err)
@@ -39,11 +44,11 @@ func Commit() {
 	}
 
 	updateRef("HEAD", RefValue{symbolic: false, value: oid}, true)
+	fmt.Printf("\nCommitted with ID: %s\n", oid[:8])
 }
 
-func CreateCommit(msg string) internal.Commit {
-
-	oid := WriteTree(".")
+func CreateCommit(msg string, dirPath string) internal.Commit {
+	oid := WriteTree(dirPath)
 	author := "Test"
 	t := time.Now()
 	c := internal.Commit{Oid: oid, Author: author, Time: t, Msg: msg}
@@ -53,7 +58,7 @@ func CreateCommit(msg string) internal.Commit {
 func getCommit(oid string) internal.Commit {
 	com, typ_ := memory.GetObject(oid)
 	if internal.TypeToString(uint32(typ_)) != "COMMIT" {
-		log.Fatal("Returned file is not of commit type")
+		log.Fatal("Returned file is not of commit type " + internal.TypeToString(uint32(typ_)))
 	}
 
 	content := string(com)

@@ -15,7 +15,7 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	println("Created ugit subdirectory")
+	println("Initialized ugit directory")
 
 	updateRef("HEAD", RefValue{symbolic: true, value: "refs/heads/master"}, true)
 }

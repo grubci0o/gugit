@@ -1,11 +1,37 @@
 package util
 
-const UGIT_DIR = ".ugit"
-const OBJECTS_DIR = ".ugit/objects"
+import (
+	"path/filepath"
+	"strings"
+)
 
-func Ignore(entry string) bool {
-	if entry == UGIT_DIR || entry == OBJECTS_DIR {
+func Ignore(path string) bool {
+	// Normalize path to forward slashes
+	path = filepath.ToSlash(path)
+
+	// Check if path starts with . or contains /.
+	if strings.HasPrefix(filepath.Base(path), ".") {
 		return true
 	}
+
+	// Additional specific ignores
+	ignorePaths := []string{
+		".ugit",
+		".git",
+		"vendor",
+		"gugit.exe",
+		"main.exe",
+	}
+
+	// Check if path or any parent directory should be ignored
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		for _, ignore := range ignorePaths {
+			if strings.EqualFold(part, ignore) {
+				return true
+			}
+		}
+	}
+
 	return false
 }

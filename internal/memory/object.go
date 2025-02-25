@@ -8,6 +8,7 @@ import (
 )
 
 func GetObject(oid string) ([]byte, internal.FileType) {
+	// probably need to handle ugit/HEAD as well ?
 	data, err := os.ReadFile(OBJECTS_DIR + "/" + oid)
 	util.Check(err)
 

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"gugit/internal/memory"
 	"log"
 )
@@ -22,23 +21,49 @@ func Tag(name, oid string) {
 	}
 }
 
+// ResolveName resolves various types of references to their commit OIDs.
+// Supported formats:
+// - @ or HEAD: current HEAD
+// - refs/heads/<branch>: branch reference
+// - refs/tags/<tag>: tag reference
+// - <sha1>: direct commit OID
+// - <branch>: short branch name
+// - <tag>: short tag name
 func ResolveName(name string) string {
-	if name == "@" {
-		_, rVal := getRef("HEAD", true)
+	// Handle special cases
+	switch name {
+	case "@", "HEAD":
+		exists, rVal := getRef("HEAD", true)
+		if exists == "false" || rVal.value == "" {
+			log.Println("HEAD not found or empty")
+			return ""
+		}
 		return rVal.value
 	}
-	lookDirs := []string{name, "refs/" + name, "refs/tags/" + name, "refs/heads/" + name}
-	for _, dir := range lookDirs {
-		if _, ref := getRef(dir, false); ref.value != "" {
-			fmt.Println("Object with that tag: " + ref.value)
-			_, rVal := getRef(dir, true)
-			return rVal.value
+
+	// Try to resolve in order of precedence
+	lookupPaths := []string{
+		name,                 // Direct reference
+		"refs/" + name,       // Full reference
+		"refs/tags/" + name,  // Tag reference
+		"refs/heads/" + name, // Branch reference
+	}
+
+	for _, path := range lookupPaths {
+		exists, ref := getRef(path, false)
+		if exists != "false" && ref.value != "" {
+			// Dereference the ref if it exists
+			exists, resolvedRef := getRef(path, true)
+			if exists != "false" {
+				return resolvedRef.value
+			}
 		}
 	}
+
+	// Check if it's a valid OID
 	if memory.ValidOID(name) {
 		return name
 	}
-	log.Fatalln("Unrecognized name. Not a tag or OID")
-	//unreachable
+
 	return ""
 }

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	cmd2 "gugit/cmd"
 	"gugit/internal"
 	"log"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -36,42 +37,49 @@ var (
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			args[0] = cmd2.ResolveName(args[0])
+			//args[0] = cmd2.ResolveName(args[0])
 			cmd2.FileCMD(args[0], internal.BLOB)
 		},
 	}
 
 	catCMD = &cobra.Command{Use: "cat",
-		Short: "Prints contents of file to stdout.",
+		Short: "Prints contents of file to stdout given hash.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			args[0] = cmd2.ResolveName(args[0])
 			cmd2.CatCMD(args[0])
 		}}
 
-	wTreeCMD = &cobra.Command{Use: "writeTree",
+	wTreeCMD = &cobra.Command{
+		Use:   "writeTree",
 		Short: "Write tree (directory) to objects subdir.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			args[0] = cmd2.ResolveName(args[0])
 			cmd2.WriteTree(args[0])
-		}}
+		},
+	}
 
 	rTreeCMD = &cobra.Command{Use: "readTree",
-		Short: "Write tree (directory) to objects subdir.",
+		Short: "Read tree (directory) to objects subdir.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			args[0] = cmd2.ResolveName(args[0])
 			cmd2.ReadTree(args[0])
 		}}
 
-	commitCMD = &cobra.Command{Use: "commit",
+	commitCMD = &cobra.Command{
+		Use: "commit [directory]",
 		Short: "Create new commit file containing saved tree, time, author and parent commit." +
 			"Commit moves head to newest created commit.",
-		Args: cobra.ExactArgs(0),
+		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd2.Commit()
-		}}
+			dirPath := "."
+			if len(args) == 1 {
+				dirPath = args[0]
+			}
+			cmd2.Commit(dirPath)
+		},
+	}
 
 	logCMD = &cobra.Command{Use: "log",
 		Short: "Log history of commits. If no arg is given it will start from HEAD.",
@@ -85,12 +93,14 @@ var (
 			}
 		}}
 
-	checkoutCMD = &cobra.Command{Use: "checkout",
-		Short: "Checks commit with oid given as only argument. Allows to move in past.",
+	checkoutCMD = &cobra.Command{
+		Use:   "checkout",
+		Short: "Checks commit with oid/tag given as only argument. Allows to move in past.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd2.Checkout(args[0])
-		}}
+			cmd2.Checkout(args[0]) // Pass the original name/reference
+		},
+	}
 
 	tagCMD = &cobra.Command{Use: "tag",
 		Short: "Creates new tag (alias) for a commit. Must be two arguments name and oid of commit." +
@@ -128,18 +138,21 @@ var (
 		}}
 
 	statusCMD = &cobra.Command{Use: "status",
-		Short: "Show your current branch.",
+		Short: "Show your current branch and compare with HEAD.",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd2.Status()
 		}}
 
-	resetCMD = &cobra.Command{Use: "reset",
-		Short: "Moves HEAD and current branch to commit with oid given as argument.",
+	resetCMD = &cobra.Command{
+		Use:   "reset",
+		Short: "Moves HEAD and current branch to commit with oid/tag given as argument.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			args[0] = cmd2.ResolveName(args[0])
 			cmd2.Reset(args[0])
-		}}
+		},
+	}
 
 	diffCMD = &cobra.Command{Use: "diff",
 		Short: "Show line by line difference between new commit and its parent.",
