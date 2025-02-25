@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"gugit/internal/memory"
+	"gugit/internal/util"
 	"log"
 )
 
@@ -12,13 +13,21 @@ func createTag(name, oid string) {
 	}, true)
 }
 
-func Tag(name, oid string) {
+func Tag(name, oid string) error {
 	if oid == "" {
-		_, val := getRef("HEAD", true)
+		_, val, err := getRef("HEAD", true)
+		if err != nil {
+			return &util.GuGitError{
+				Type:    util.ErrRef,
+				Message: "Failed to get HEAD reference",
+				Err:     err,
+			}
+		}
 		createTag(name, val.value)
 	} else {
 		createTag(name, oid)
 	}
+	return nil
 }
 
 // ResolveName resolves various types of references to their commit OIDs.
@@ -33,8 +42,8 @@ func ResolveName(name string) string {
 	// Handle special cases
 	switch name {
 	case "@", "HEAD":
-		exists, rVal := getRef("HEAD", true)
-		if exists == "false" || rVal.value == "" {
+		_, rVal, err := getRef("HEAD", true)
+		if err != nil || rVal.value == "" {
 			log.Println("HEAD not found or empty")
 			return ""
 		}
@@ -50,11 +59,11 @@ func ResolveName(name string) string {
 	}
 
 	for _, path := range lookupPaths {
-		exists, ref := getRef(path, false)
-		if exists != "false" && ref.value != "" {
+		_, ref, err := getRef(path, false)
+		if err == nil && ref.value != "" {
 			// Dereference the ref if it exists
-			exists, resolvedRef := getRef(path, true)
-			if exists != "false" {
+			_, resolvedRef, err := getRef(path, true)
+			if err == nil {
 				return resolvedRef.value
 			}
 		}

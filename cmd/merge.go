@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gugit/internal"
 	"gugit/internal/memory"
+	"gugit/internal/util"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,17 +13,25 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
-func Merge(otherBranch string) {
+func Merge(otherBranch string) error {
 	// Get current HEAD commit
-	_, head := getRef("HEAD", true)
-	if head.value == "" {
-		log.Fatalln("Could not merge -> HEAD not found.")
+	_, head, err := getRef("HEAD", true)
+	if err != nil {
+		return &util.GuGitError{
+			Type:    util.ErrMerge,
+			Message: "Failed to get HEAD reference",
+			Err:     err,
+		}
 	}
 
 	// Get other branch commit
-	_, otherBranchRef := getRef(otherBranch, true)
-	if otherBranchRef.value == "" {
-		log.Fatalf("Branch %s not found", otherBranch)
+	_, otherBranchRef, err := getRef(otherBranch, true)
+	if err != nil {
+		return &util.GuGitError{
+			Type:    util.ErrMerge,
+			Message: "Branch " + otherBranch + " not found",
+			Err:     err,
+		}
 	}
 
 	// Get common ancestor
@@ -32,10 +41,16 @@ func Merge(otherBranch string) {
 	}
 
 	// Store MERGE_HEAD for the commit
-	updateRef("MERGE_HEAD", RefValue{
+	if err := updateRef("MERGE_HEAD", RefValue{
 		symbolic: false,
 		value:    otherBranchRef.value,
-	}, true)
+	}, true); err != nil {
+		return &util.GuGitError{
+			Type:    util.ErrMerge,
+			Message: "Failed to update MERGE_HEAD",
+			Err:     err,
+		}
+	}
 
 	// Read and merge trees
 	comHead := getCommit(head.value)
@@ -64,6 +79,7 @@ func Merge(otherBranch string) {
 	}
 
 	fmt.Printf("\nMerge completed successfully\n")
+	return nil
 }
 
 func readTreeMerged(treeHead, treeOther string) map[string]string {
@@ -171,8 +187,8 @@ func mergeCommit(message string) {
 	oid := WriteTree(".")
 
 	// Get HEAD and MERGE_HEAD
-	_, head := getRef("HEAD", true)
-	_, mergeHead := getRef("MERGE_HEAD", true)
+	_, head, err := getRef("HEAD", true)
+	_, mergeHead, err := getRef("MERGE_HEAD", true)
 
 	// Create commit object
 	author := "Test"
@@ -210,4 +226,9 @@ func mergeCommit(message string) {
 		symbolic: false,
 		value:    commitOid,
 	}, true)
+
+	// In mergeCommit function:
+	if err := deleteRef("MERGE_HEAD", false); err != nil {
+		log.Printf("Warning: could not delete MERGE_HEAD: %v\n", err)
+	}
 }

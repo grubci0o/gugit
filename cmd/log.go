@@ -21,7 +21,7 @@ func Log(oid string) {
 			if err != nil {
 				return nil
 			}
-			_, refVal := getRef(relPath, true)
+			_, refVal, _ := getRef(relPath, true)
 			if refVal.value != "" {
 				refs[refVal.value] = append(refs[refVal.value], relPath)
 			}
@@ -45,7 +45,7 @@ func Log(oid string) {
 
 	// Get starting commit
 	if oid == "" {
-		_, head := getRef("HEAD", true)
+		_, head, _ := getRef("HEAD", true)
 		oid = head.value
 	}
 

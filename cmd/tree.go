@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"fmt"
 	"gugit/internal"
 	"gugit/internal/memory"
 	"gugit/internal/util"
@@ -15,9 +14,11 @@ import (
 
 func WriteTree(dirPath string) string {
 	dirEntries, err := os.ReadDir(dirPath)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -63,7 +64,6 @@ func WriteTree(dirPath string) string {
 		return ""
 	}
 	oid := memory.StoreObjectBytes([]byte(ws), internal.TREE)
-	fmt.Println("Tree oid " + oid)
 	return oid
 }
 

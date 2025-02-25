@@ -4,6 +4,7 @@ import (
 	"fmt"
 	cmd2 "gugit/cmd"
 	"gugit/internal"
+	"gugit/internal/util"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -77,7 +78,9 @@ var (
 			if len(args) == 1 {
 				dirPath = args[0]
 			}
-			cmd2.Commit(dirPath)
+			if err := cmd2.Commit(dirPath); err != nil {
+				util.HandleError(err)
+			}
 		},
 	}
 
@@ -108,10 +111,14 @@ var (
 		Args: cobra.MaximumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 1 {
-				cmd2.Tag(args[0], "")
+				if err := cmd2.Tag(args[0], ""); err != nil {
+					util.HandleError(err)
+				}
 			} else {
 				args[1] = cmd2.ResolveName(args[1])
-				cmd2.Tag(args[0], args[1])
+				if err := cmd2.Tag(args[0], args[1]); err != nil {
+					util.HandleError(err)
+				}
 			}
 		}}
 
@@ -165,7 +172,9 @@ var (
 		Short: "Merge other branch given as argument to branch pointed by HEAD.",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd2.Merge("refs/heads/" + args[0])
+			if err := cmd2.Merge("refs/heads/" + args[0]); err != nil {
+				util.HandleError(err)
+			}
 		}}
 )
 

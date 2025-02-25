@@ -45,7 +45,7 @@ func K() {
 
 	// Get HEAD for special marking
 	headOid := ""
-	if _, head := getRef("HEAD", true); head.value != "" {
+	if _, head, err := getRef("HEAD", true); err == nil && head.value != "" {
 		headOid = head.value
 	}
 

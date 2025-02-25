@@ -21,7 +21,7 @@ func Status() {
 	}
 
 	// Print merge status if in merge
-	_, mergeH := getRef("MERGE_HEAD", true)
+	_, mergeH, _ := getRef("MERGE_HEAD", true)
 	if mergeH.value != "" {
 		fmt.Printf("Merging with %s\n", mergeH.value[:8])
 	}

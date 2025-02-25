@@ -15,12 +15,22 @@ type RefValue struct {
 	value    string
 }
 
-func updateRef(ref string, value RefValue, deref bool) {
-	r, _ := getRef(ref, deref)
+func updateRef(ref string, value RefValue, deref bool) error {
+	r, _, err := getRef(ref, deref)
+	if err != nil && !os.IsNotExist(err) {
+		return &util.GuGitError{
+			Type:    util.ErrRef,
+			Message: "Failed to get ref",
+			Err:     err,
+		}
+	}
 
-	//save symbolic ref
 	if value.value == "" {
-		return
+		return &util.GuGitError{
+			Type:    util.ErrRef,
+			Message: "Cannot update ref with empty value",
+			Err:     nil,
+		}
 	}
 	var v string
 	if value.symbolic {
@@ -38,16 +48,27 @@ func updateRef(ref string, value RefValue, deref bool) {
 		log.Println("Could not save head")
 		log.Fatal(err)
 	}
+	return nil
 }
 
-func getRef(oid string, deref bool) (string, RefValue) {
+func getRef(oid string, deref bool) (string, RefValue, error) {
 	path := memory.UGIT_DIR + "/" + oid
 	if refNotExist(oid) {
-		return oid, RefValue{}
+		return oid, RefValue{}, &util.GuGitError{
+			Type:    util.ErrRef,
+			Message: "Ref " + oid + " does not exist",
+			Err:     nil,
+		}
 	}
 
 	b, err := os.ReadFile(path)
-	util.Check(err)
+	if err != nil {
+		return "", RefValue{}, &util.GuGitError{
+			Type:    util.ErrRef,
+			Message: "Failed to read ref file",
+			Err:     err,
+		}
+	}
 	s := string(b)
 
 	//handle symbolic refs -> ref: <refname>
@@ -66,10 +87,10 @@ func getRef(oid string, deref bool) (string, RefValue) {
 			return getRef(split[1], true)
 		}
 		//case its symbolic, but we don't want to deref it
-		return oid, RefValue{isSymbolic, split[1]}
+		return oid, RefValue{isSymbolic, split[1]}, nil
 	}
 	//not symbolic so its just OID in file
-	return oid, RefValue{symbolic: isSymbolic, value: split[0]}
+	return oid, RefValue{symbolic: isSymbolic, value: split[0]}, nil
 }
 
 func refNotExist(oid string) bool {
@@ -124,8 +145,21 @@ func deleteEmpty(s []string) []string {
 	return r
 }
 
-func deleteRef(ref string, deref bool) {
-	r, _ := getRef(ref, deref)
-	err := os.Remove(memory.UGIT_DIR + "/" + r)
-	util.Check(err)
+func deleteRef(ref string, deref bool) error {
+	r, _, err := getRef(ref, deref)
+	if err != nil {
+		return &util.GuGitError{
+			Type:    util.ErrRef,
+			Message: "Failed to delete ref",
+			Err:     err,
+		}
+	}
+	if err := os.Remove(memory.UGIT_DIR + "/" + r); err != nil {
+		return &util.GuGitError{
+			Type:    util.ErrIO,
+			Message: "Failed to remove ref file",
+			Err:     err,
+		}
+	}
+	return nil
 }

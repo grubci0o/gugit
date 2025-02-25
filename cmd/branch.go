@@ -24,12 +24,15 @@ func isBranch(branch string) bool {
 	branch = strings.TrimPrefix(branch, "refs/heads/")
 
 	// Check if the branch reference exists
-	_, refVal := getRef("refs/heads/"+branch, true)
+	_, refVal, _ := getRef("refs/heads/"+branch, true)
 	return refVal.value != ""
 }
 
 func getBranch() string {
-	_, h := getRef("HEAD", false)
+	_, h, err := getRef("HEAD", false)
+	if err != nil {
+		return ""
+	}
 	if !h.symbolic {
 		return ""
 	}
