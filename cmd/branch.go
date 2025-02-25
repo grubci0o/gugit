@@ -20,7 +20,6 @@ func Branch(name, oid string) {
 }
 
 func isBranch(branch string) bool {
-	// Remove any refs/heads/ prefix if it exists
 	branch = strings.TrimPrefix(branch, "refs/heads/")
 
 	// Check if the branch reference exists

@@ -5,7 +5,6 @@ import (
 )
 
 func Status() {
-	// Get HEAD and branch info
 	h := ResolveName("@")
 	br := getBranch()
 
@@ -38,23 +37,19 @@ func Status() {
 		treeEntries = make(map[string]string)
 	}
 
-	// Get working tree
 	workingTree, err := getWorkingTree()
 	if err != nil {
 		fmt.Printf("Error reading working directory: %v\n", err)
 		return
 	}
 
-	// Compare trees and get changes
 	changes := diffFiles(treeEntries, workingTree)
 
-	// Print changes or "clean" message
 	if len(changes) == 0 {
 		fmt.Println("\nNothing to commit, working tree clean")
 		return
 	}
 
-	// Group and print changes
 	fmt.Println("\nChanges:")
 	printChangesByType(changes)
 }

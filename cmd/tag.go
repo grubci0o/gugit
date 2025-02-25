@@ -39,7 +39,6 @@ func Tag(name, oid string) error {
 // - <branch>: short branch name
 // - <tag>: short tag name
 func ResolveName(name string) string {
-	// Handle special cases
 	switch name {
 	case "@", "HEAD":
 		_, rVal, err := getRef("HEAD", true)
@@ -50,7 +49,6 @@ func ResolveName(name string) string {
 		return rVal.value
 	}
 
-	// Try to resolve in order of precedence
 	lookupPaths := []string{
 		name,                 // Direct reference
 		"refs/" + name,       // Full reference
@@ -69,7 +67,6 @@ func ResolveName(name string) string {
 		}
 	}
 
-	// Check if it's a valid OID
 	if memory.ValidOID(name) {
 		return name
 	}

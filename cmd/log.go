@@ -32,7 +32,6 @@ func Log(oid string) {
 		log.Printf("Warning: error walking refs: %v\n", err)
 	}
 
-	// Print refs
 	for oid, refNames := range refs {
 		prettyRefs := make([]string, 0)
 		for _, ref := range refNames {
@@ -43,7 +42,6 @@ func Log(oid string) {
 		fmt.Printf("Commit %s, refs: [%s]\n", oid[:8], strings.Join(prettyRefs, ", "))
 	}
 
-	// Get starting commit
 	if oid == "" {
 		_, head, _ := getRef("HEAD", true)
 		oid = head.value
@@ -51,7 +49,6 @@ func Log(oid string) {
 
 	fmt.Println("\nPrinting commit tree")
 
-	// Track visited commits to avoid duplicates
 	visited := make(map[string]bool)
 	var commits []string
 	commits = append(commits, oid)
@@ -67,7 +64,6 @@ func Log(oid string) {
 
 		commit := getCommit(current)
 
-		// Add parents to the queue
 		if len(commit.Parent) > 0 {
 			commits = append(commits, commit.Parent...)
 		}

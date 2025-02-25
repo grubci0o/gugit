@@ -58,6 +58,7 @@ func WriteTree(dirPath string) string {
 	for _, te := range treeEntries {
 		sb.WriteString(" " + internal.TypeToString(uint32(te.Typ_)) + " " + te.Oid + " " + te.Name + "\n")
 	}
+
 	//skip empty directories
 	ws := sb.String()
 	if ws == "" {
@@ -89,36 +90,30 @@ func GetTree(oid string, basePath string) map[string]string {
 		content = append(content, scanner.Bytes()...)
 	}
 
-	// Check if file is empty or too small
 	if len(content) < 4 {
 		return files
 	}
 
-	// Skip file type bytes
 	content = content[4:]
 	if len(content) == 0 {
 		return files
 	}
 
 	entriesString := strings.Split(string(content), " ")
-	// Check if we have valid entries
 	if len(entriesString) <= 1 {
 		return files
 	}
 	entriesString = entriesString[1:] // Skip first empty element after split
 
 	for i := 0; i < len(entriesString); i += 3 {
-		// Ensure we have enough elements for a complete entry
 		if i+2 >= len(entriesString) {
 			break
 		}
 
 		typ_, hash, name := entriesString[i], entriesString[i+1], entriesString[i+2]
 
-		// Convert to forward slashes and clean path
 		cleanPath := filepath.ToSlash(filepath.Clean(name))
 
-		// Make path relative to working directory
 		wd, err := os.Getwd()
 		if err == nil {
 			if relPath, err := filepath.Rel(wd, cleanPath); err == nil {
@@ -139,24 +134,19 @@ func GetTree(oid string, basePath string) map[string]string {
 }
 
 func ReadTree(oid string) {
-	// First, we should clean the working directory except for .ugit
 	util.CleanDir()
 
-	// Get the tree entries and restore files
 	for path, oid := range GetTree(oid, "./") {
-		// Create directories if they don't exist
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			log.Fatal(err)
 		}
 
-		// Create and write file
 		f, err := os.Create(path)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer f.Close()
 
-		// Get object data
 		data, typ := memory.GetObject(oid)
 		if typ != internal.BLOB {
 			log.Fatal("Expected blob, got " + internal.TypeToString(uint32(typ)))
@@ -205,5 +195,6 @@ func getWorkingTree() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return entries, nil
 }

@@ -83,7 +83,6 @@ func getRef(oid string, deref bool) (string, RefValue, error) {
 	if isSymbolic {
 		if deref {
 			//symbolic and recursively dereference it
-
 			return getRef(split[1], true)
 		}
 		//case its symbolic, but we don't want to deref it
@@ -108,7 +107,6 @@ func create(p string) (*os.File, error) {
 func genRefs() []string {
 	refs := []string{"HEAD"}
 
-	// Check if refs directory exists
 	refsPath := filepath.Join(memory.UGIT_DIR, "refs")
 	if _, err := os.Stat(refsPath); os.IsNotExist(err) {
 		return refs // Return just HEAD if refs directory doesn't exist
@@ -116,12 +114,12 @@ func genRefs() []string {
 
 	err := filepath.WalkDir(refsPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // Skip errors and continue walking
+			return nil
 		}
 		if !d.IsDir() {
 			relPath, err := filepath.Rel(memory.UGIT_DIR, path)
 			if err != nil {
-				return nil // Skip errors and continue walking
+				return nil
 			}
 			refs = append(refs, relPath)
 		}

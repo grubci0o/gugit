@@ -4,20 +4,17 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"gugit/internal"
 	"gugit/internal/util"
 	"io"
 	"log"
 	"os"
-	"strconv"
 )
 
 const UGIT_DIR = ".ugit"
 const OBJECTS_DIR = ".ugit/objects"
 
 func StoreObject(filePath string, objType internal.FileType) error {
-	fmt.Println("Storage test: path is " + filePath)
 	type_ := make([]byte, 4)
 	binary.LittleEndian.PutUint32(type_, uint32(objType))
 	OID := HashFile(filePath, objType)
@@ -49,7 +46,7 @@ func StoreObject(filePath string, objType internal.FileType) error {
 	}
 	defer f.Close()
 
-	nBytes, err := io.Copy(dest, f)
+	_, err = io.Copy(dest, f)
 	if err != nil {
 		return &util.GuGitError{
 			Type:    util.ErrIO,
@@ -57,7 +54,6 @@ func StoreObject(filePath string, objType internal.FileType) error {
 			Err:     err,
 		}
 	}
-	fmt.Println("Written this much bytes: " + strconv.Itoa(int(nBytes)))
 	return nil
 }
 

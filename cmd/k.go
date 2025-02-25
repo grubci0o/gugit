@@ -13,11 +13,9 @@ type commitNode struct {
 }
 
 func K() {
-	// Build commit graph
 	commits := make(map[string]*commitNode)
 	refs := make(map[string]string)
 
-	// Collect all refs
 	for _, ref := range genRefs() {
 		resolved := ResolveName(ref)
 		if resolved == "" {
@@ -49,7 +47,6 @@ func K() {
 		headOid = head.value
 	}
 
-	// Build commit history (BFS to maintain order)
 	var history []*commitNode
 	visited := make(map[string]bool)
 	queue := []string{headOid}
@@ -73,11 +70,9 @@ func K() {
 		}
 		history = append(history, node)
 
-		// Add parents to queue
 		queue = append(queue, node.commit.Parent...)
 	}
 
-	// Assign columns
 	maxCol := 0
 	for i, node := range history {
 		if node.column == 0 && i > 0 {
@@ -91,9 +86,7 @@ func K() {
 		}
 	}
 
-	// Print commit graph
 	for i, node := range history {
-		// Print graph
 		line := make([]string, maxCol*2+1)
 		for j := range line {
 			line[j] = " "
@@ -102,7 +95,6 @@ func K() {
 		col := node.column
 		line[col*2] = "*"
 
-		// Draw lines to parents
 		for _, parent := range node.commit.Parent {
 			if pNode := commits[parent]; pNode != nil {
 				parentCol := pNode.column
@@ -124,7 +116,6 @@ func K() {
 		if len(node.refs) > 0 {
 			prettyRefs := make([]string, 0)
 			for _, ref := range node.refs {
-				// Convert refs/heads/master to just master
 				ref = strings.TrimPrefix(ref, "refs/heads/")
 				ref = strings.TrimPrefix(ref, "refs/tags/")
 				prettyRefs = append(prettyRefs, ref)
@@ -134,7 +125,6 @@ func K() {
 
 		fmt.Printf("%s %s%s %s\n", graph, shortOid, refs, msg)
 
-		// Draw vertical lines for next commit
 		if i < len(history)-1 {
 			for j := range line {
 				line[j] = " "
